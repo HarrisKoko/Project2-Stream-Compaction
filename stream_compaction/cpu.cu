@@ -19,8 +19,12 @@ namespace StreamCompaction {
          */
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
-            // TODO
+            odata[0] = 0;
+            for (int j = 1; j < n;j++) {
+                odata[j] = odata[j - 1] + idata[j-1];
+            }
             timer().endCpuTimer();
+            return;
         }
 
         /**
@@ -29,10 +33,18 @@ namespace StreamCompaction {
          * @returns the number of elements remaining after compaction.
          */
         int compactWithoutScan(int n, int *odata, const int *idata) {
+            int oIdx = 0;
+            int count = 0;
             timer().startCpuTimer();
-            // TODO
+            for (int i = 0;i < n;i++) {
+                if (idata[i] != 0) {
+                    odata[oIdx] = idata[i];
+                    oIdx++;
+                    count++;
+                }
+            }
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
 
         /**
@@ -40,11 +52,36 @@ namespace StreamCompaction {
          *
          * @returns the number of elements remaining after compaction.
          */
-        int compactWithScan(int n, int *odata, const int *idata) {
+        int compactWithScan(int n, int* odata, const int* idata) {
+            int* scanResult = new int[n];
+            int* maskedIdata = new int[n];
+
             timer().startCpuTimer();
-            // TODO
+
+            for (int k = 0; k < n;k++) {
+                maskedIdata[k] = idata[k] != 0 ? 1 : 0;
+            }
+
+            scanResult[0] = 0;
+            for (int j = 1; j < n;j++) {
+                scanResult[j] = scanResult[j - 1] + maskedIdata[j - 1];
+            }
+
+            for (int i = 0; i < n; i++) {
+                if (maskedIdata[i] == 1) {
+                    odata[scanResult[i]] = idata[i];
+                }
+            }
+
             timer().endCpuTimer();
-            return -1;
+
+            int count = scanResult[n - 1];
+
+            delete[] scanResult;
+            delete[] maskedIdata;
+            return count;
         }
+
+
     }
 }
