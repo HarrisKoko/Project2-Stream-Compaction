@@ -66,6 +66,7 @@ namespace StreamCompaction {
             for (int j = 1; j < n;j++) {
                 scanResult[j] = scanResult[j - 1] + maskedIdata[j - 1];
             }
+           
 
             for (int i = 0; i < n; i++) {
                 if (maskedIdata[i] == 1) {
