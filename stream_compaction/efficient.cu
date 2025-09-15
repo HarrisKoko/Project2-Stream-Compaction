@@ -20,9 +20,8 @@ namespace StreamCompaction {
 
             int next_idx = stride * (index + 1) - 1;
 
-            if (next_idx < n) {
-                idata[next_idx] += idata[next_idx - (1 << d)];
-            }
+            idata[next_idx] += idata[next_idx - (1 << d)];
+        
         }
 
         __global__ void kernDownSweep(int* idata, int n, int d) {
@@ -33,11 +32,9 @@ namespace StreamCompaction {
             int right_idx = stride * (index + 1) - 1;
             int left_idx = right_idx - (1 << d);
 
-            if (right_idx < n) {
-                int temp = idata[left_idx];                // Save left child
-                idata[left_idx] = idata[right_idx];        // Set left = right
-                idata[right_idx] += temp;                  // Set right = left + right
-            }
+            int temp = idata[left_idx];                // Save left child
+            idata[left_idx] = idata[right_idx];        // Set left = right
+            idata[right_idx] += temp;                  // Set right = left + right
         }
 
         /**
@@ -63,7 +60,7 @@ namespace StreamCompaction {
                 int threads_per_block = 128;  
                 int num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
 
-                kernUpSweep <<<num_blocks, threads_per_block >>> (dev_idata, padded_n, d);
+                kernUpSweep <<<num_blocks, threads_per_block >>> (dev_idata, num_active_elements, d);
                 cudaDeviceSynchronize();
             }
 
@@ -74,7 +71,7 @@ namespace StreamCompaction {
                 int threads_per_block = 128;
                 int num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
 
-                kernDownSweep << <num_blocks, threads_per_block >> > (dev_idata, padded_n, d);
+                kernDownSweep << <num_blocks, threads_per_block >> > (dev_idata, num_active_elements, d);
                 cudaDeviceSynchronize();
             }
 
@@ -119,8 +116,8 @@ namespace StreamCompaction {
             for (int d = 0; d < numSteps; d++) {
                 int num_active_elements = padded_n / (1 << (d + 1));
                 int threads_per_block = 128;
-                int num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
-                kernUpSweep << <num_blocks, threads_per_block >> > (dev_indices, padded_n, d);
+                dim3 num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
+                kernUpSweep << <num_blocks, threads_per_block >> > (dev_indices, num_active_elements, d);
                 cudaDeviceSynchronize();
             }
 
@@ -129,8 +126,8 @@ namespace StreamCompaction {
             for (int d = numSteps - 1; d >= 0; d--) {
                 int num_active_elements = padded_n / (1 << (d + 1));
                 int threads_per_block = 128;
-                int num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
-                kernDownSweep << <num_blocks, threads_per_block >> > (dev_indices, padded_n, d);
+                dim3 num_blocks = (num_active_elements + threads_per_block - 1) / threads_per_block;
+                kernDownSweep << <num_blocks, threads_per_block >> > (dev_indices, num_active_elements, d);
                 cudaDeviceSynchronize();
             }
 

@@ -40,9 +40,9 @@ namespace StreamCompaction {
             int numSteps = ilog2ceil(n);
             for (int d = 1; d <= numSteps; d++) {
                 int offset = 1 << (d - 1);
-                int block_size = 512;
-                dim3 num_blocks = (n + block_size - 1) / block_size;
-                kernNaiveScanStep <<<num_blocks, block_size >> > (dev_odata, dev_idata, n, offset);
+                int threads_per_block = 128;
+                dim3 num_blocks = (n + threads_per_block - 1) / threads_per_block;
+                kernNaiveScanStep <<<num_blocks, threads_per_block >> > (dev_odata, dev_idata, n, offset);
                 cudaDeviceSynchronize();
                 std::swap(dev_odata, dev_idata);  
             }
