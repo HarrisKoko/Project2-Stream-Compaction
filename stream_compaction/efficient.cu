@@ -29,13 +29,13 @@ namespace StreamCompaction {
             int index = threadIdx.x + (blockIdx.x * blockDim.x);
             if (index >= n) return;
 
-            int stride = 1 << (d + 1);  // 2^(d+1)
+            int stride = 1 << (d + 1);  
             int right_idx = stride * (index + 1) - 1;
             int left_idx = right_idx - (1 << d);
 
             if (right_idx < n) {
                 int temp = idata[left_idx];                // Save left child
-                idata[left_idx] = idata[right_idx];     // Set left = right
+                idata[left_idx] = idata[right_idx];        // Set left = right
                 idata[right_idx] += temp;                  // Set right = left + right
             }
         }
@@ -106,7 +106,7 @@ namespace StreamCompaction {
             cudaMemset(dev_idata + n, 0, sizeof(int) * (padded_n - n));
             timer().startGpuTimer();
 
-            // Map to Booleans - process all padded elements
+            // Map to Booleans 
             int threads_per_block = 128;
             int num_blocks_padded = (padded_n + threads_per_block - 1) / threads_per_block;
             StreamCompaction::Common::kernMapToBoolean << <num_blocks_padded, threads_per_block >> > (padded_n, dev_bools, dev_idata);
