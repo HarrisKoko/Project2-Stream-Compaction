@@ -48,3 +48,84 @@ Now that we have our scan implementations, we developed a stream compaction meth
 ![Alt text](img/sc.png "Optional title")
 
 The graph above shows that the lowest runtime at large array sizes for stream compaction was found with a block size of 128. 
+
+Questions
+======================
+
+### Can you find the performance bottlenecks? Is it memory I/O? Computation? Is it different for each implementation?
+
+There are several performance bottlenecks in the implementations developed in this project. The most significant bottleneck is global memory latency. Each global memory access incurs 400-800 cycles of latency, and since the scan algorithms are memory-bound rather than compute-bound, this latency dominates runtime. The implementations rely heavily on repeated global memory reads and writes across multiple kernel launches, amplifying this bottleneck.
+Kernel launch overhead presents another major bottleneck, particularly for the work-efficient algorithm which requires approximately double the kernel launches compared to the naive algorithm launches. Finally, underutilized shared memory represents a missed optimization opportunity. The current implementations do not effectively leverage shared memory available per streaming multiprocessor, instead relying on the much slower global memory for all data access.
+
+### Why does Thrust perform the best / what is it doing?
+
+After looking at Nsight Compute, Thrust utilizes shared memory. This is likely already enough to explain such a large difference in runtime as shared memory is tremendously faster to use than global memory. The global memory reads in Thrust also appear to be much faster, which indicates that it may use memory coalescing. 
+
+### Test program output
+
+```
+****************
+** SCAN TESTS **
+****************
+    [  20  41  29  12  11   7  46  36   7  26  18  44  39 ...  44   0 ]
+==== cpu scan, power-of-two ====
+   elapsed time: 64.9505ms    (std::chrono Measured)
+    [   0  20  61  90 102 113 120 166 202 209 235 253 297 ... 410869567 410869611 ]
+==== cpu scan, non-power-of-two ====
+   elapsed time: 54.5937ms    (std::chrono Measured)
+    [   0  20  61  90 102 113 120 166 202 209 235 253 297 ... 410869549 410869554 ]
+    passed
+==== naive scan, power-of-two ====
+   elapsed time: 13.3262ms    (CUDA Measured)
+    passed
+==== naive scan, non-power-of-two ====
+   elapsed time: 13.098ms    (CUDA Measured)
+    passed
+==== work-efficient scan, power-of-two ====
+   elapsed time: 7.71533ms    (CUDA Measured)
+    passed
+==== work-efficient scan, non-power-of-two ====
+   elapsed time: 6.77478ms    (CUDA Measured)
+    passed
+==== thrust scan, power-of-two ====
+   elapsed time: 1.83706ms    (CUDA Measured)
+    passed
+==== thrust scan, non-power-of-two ====
+   elapsed time: 1.40493ms    (CUDA Measured)
+    passed
+
+*****************************
+** STREAM COMPACTION TESTS **
+*****************************
+    [   2   3   1   0   3   1   0   2   1   2   2   0   3 ...   0   0 ]
+==== cpu compact without scan, power-of-two ====
+   elapsed time: 72.6697ms    (std::chrono Measured)
+    [   2   3   1   3   1   2   1   2   2   3   1   3   3 ...   3   2 ]
+    passed
+==== cpu compact without scan, non-power-of-two ====
+   elapsed time: 68.5979ms    (std::chrono Measured)
+    [   2   3   1   3   1   2   1   2   2   3   1   3   3 ...   1   3 ]
+    passed
+==== cpu compact with scan ====
+   elapsed time: 105.959ms    (std::chrono Measured)
+    [   2   3   1   3   1   2   1   2   2   3   1   3   3 ...   3   2 ]
+    passed
+==== work-efficient compact, power-of-two ====
+   elapsed time: 9.48928ms    (CUDA Measured)
+    passed
+==== work-efficient compact, non-power-of-two ====
+   elapsed time: 8.56166ms    (CUDA Measured)
+    passed
+```
+
+Extra Credit
+======================
+
+### Block and thread size optimization
+
+One major overhead I found in my original implementation was how many threads and blocks I was spawning. Initially, in work efficient, I was spawning blocks based on input size n. however, I realized I could compute the number of active elements at any stage by doing:
+```int num_active_elements = padded_n / (1 << (d + 1));```.
+Then, I compute how many blocks are necessary for that many active elements using a ceiling division:
+```num_blocks_padded = (padded_n + threads_per_block - 1) / threads_per_block;```. The alternatives to this were using a constant number which will crash the program at large array sizes due to not having enough compute power allocated to complete the task or using the mod operation to figure out the required number. The mod operation yields a similar result, but introduces significant overhead as the mod operation is complex and the GPU does not have any hardware that is designed to perform the operation quickly or independently. 
+
+
